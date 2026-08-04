@@ -1,15 +1,15 @@
 {
-  "name": "oh-my-opencode-dashboard",
-  "version": "0.4.4",
-  "description": "Local-only, read-only dashboard for viewing OhMyOpenCode agent progress",
+  "name": "@310networks/opencode-dashboard",
+  "version": "0.1.0",
+  "description": "Local-only, read-only dashboard for OpenCode agent activity with a built-in llama.cpp monitor",
   "license": "SUL-1.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/WilliamJudge94/oh-my-opencode-dashboard"
+    "url": "https://github.com/310networks/opencode-dashboard"
   },
   "type": "module",
   "bin": {
-    "oh-my-opencode-dashboard": "./src/server/start.ts"
+    "opencode-dashboard": "./src/server/start.ts"
   },
   "files": [
     "dist",
