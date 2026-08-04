@@ -1,19 +1,17 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import type {
-  GpuMetricsMap,
-  GpuEnv,
   LlamaMetrics,
   ModelPreset,
   UiSettings,
   DiscoveredModel,
+  GpuEnv,
 } from './types'
 
 export interface LlamaMonitorState {
   llamaMetrics: LlamaMetrics
   llamaMetricsInterval: ReturnType<typeof setInterval> | null
   llamaServerUrl: string
-  gpuMetrics: GpuMetricsMap
   gpuEnv: GpuEnv
   discoveredModels: DiscoveredModel[]
   presets: ModelPreset[]
@@ -50,7 +48,6 @@ export function createLlamaMonitorState(opts: {
     },
     llamaMetricsInterval: null,
     llamaServerUrl: uiSettings.llama_server_url || '',
-    gpuMetrics: {},
     gpuEnv,
     discoveredModels: [],
     presets,
@@ -117,15 +114,7 @@ export function savePresets(state: LlamaMonitorState): void {
   }
 }
 
-export function saveGpuEnv(state: LlamaMonitorState): void {
-  try {
-    const dir = path.dirname(state.gpuEnvPath)
-    fs.mkdirSync(dir, { recursive: true })
-    fs.writeFileSync(state.gpuEnvPath, JSON.stringify(state.gpuEnv, null, 2))
-  } catch {
-    // ignore
-  }
-}
+
 
 export function saveUiSettings(state: LlamaMonitorState): void {
   try {

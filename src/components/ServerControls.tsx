@@ -17,7 +17,6 @@ export function ServerControls() {
   const [connected, setConnected] = useState(false)
   const [metrics, setMetrics] = useState<LlamaMetrics | null>(null)
   const [url, setUrl] = useState('')
-  const [logs, setLogs] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState('')
@@ -25,22 +24,12 @@ export function ServerControls() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [statusRes, settingsRes] = await Promise.all([
-          fetch((window.API_BASE || '') + '/api/llama/status'),
-          fetch((window.API_BASE || '') + '/api/llama/settings'),
-        ])
-
+        const statusRes = await fetch((window.API_BASE || '') + '/api/llama/status')
         const status = await statusRes.json()
-        const settings = await settingsRes.json()
 
         if (status.ok) {
           setConnected(status.connected)
           setMetrics(status.metrics)
-          setLogs(status.logs.slice(-20))
-          if (status.url) setUrl(status.url)
-        }
-        if (settings.ok && settings.settings?.llama_server_url) {
-          setUrl(settings.settings.llama_server_url)
         }
       } catch {
         // ignore
@@ -87,28 +76,51 @@ export function ServerControls() {
 
       <div className="server-config">
         <h4>Connection</h4>
-        <div className="form-group">
-          <label>Server URL</label>
-          <input
-            type="text"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="http://10.10.42.94:8080"
-          />
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ display: 'block', marginBottom: 6, fontSize: 12, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            Server URL
+          </label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input
+              type="text"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="http://10.10.42.94:8080"
+              className="field"
+              style={{ flex: 1 }}
+            />
+            <button onClick={handleSave} className="button" disabled={saving} style={{ whiteSpace: 'nowrap' }}>
+              {saving ? 'Saving...' : 'Save'}
+            </button>
+            {saveMsg && <span style={{ fontSize: 12, color: 'var(--teal)' }}>{saveMsg}</span>}
+          </div>
         </div>
-        <div className="server-actions">
-          <button onClick={handleSave} className="btn btn-start" disabled={saving}>
-            {saving ? 'Saving...' : 'Save'}
-          </button>
-          {saveMsg && <span className="muted" style={{ marginLeft: 8 }}>{saveMsg}</span>}
-        </div>
-      </div>
 
-      <div className="server-status">
-        <span className={`status-indicator ${connected ? 'running' : 'stopped'}`}>
-          {connected ? '● Connected' : '● Disconnected'}
-        </span>
-        {url && <span className="muted mono" style={{ marginLeft: 12, fontSize: 12 }}>{url}</span>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              fontSize: 13,
+              fontWeight: 500,
+              color: connected ? 'var(--green)' : 'var(--red)',
+            }}
+          >
+            <span
+              style={{
+                display: 'inline-block',
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                backgroundColor: connected ? 'var(--green)' : 'var(--red)',
+                boxShadow: `0 0 6px ${connected ? 'var(--green)' : 'var(--red)'}80`,
+              }}
+            />
+            {connected ? 'Connected' : 'Disconnected'}
+          </span>
+          {url && <span className="muted mono" style={{ fontSize: 11 }}>{url}</span>}
+        </div>
       </div>
 
       {metrics && (
@@ -140,17 +152,6 @@ export function ServerControls() {
               <span className="metric-value">{metrics.slots_processing} / {metrics.slots_idle + metrics.slots_processing}</span>
             </div>
           </div>
-        </div>
-      )}
-
-      {logs.length > 0 && (
-        <div className="server-logs">
-          <h4>Logs</h4>
-          <pre className="logs-output">
-            {logs.map((log, i) => (
-              <div key={i}>{log}</div>
-            ))}
-          </pre>
         </div>
       )}
     </div>

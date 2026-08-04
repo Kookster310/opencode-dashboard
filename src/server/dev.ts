@@ -5,7 +5,6 @@ import { createDashboardStore, type DashboardStore } from "./dashboard"
 import { getLegacyStorageRootForBackend, selectStorageBackend } from "../ingest/storage-backend"
 import { createLlamaMonitorApi } from './llama-monitor/api'
 import { createLlamaMonitorState } from './llama-monitor/state'
-import { detectGpuBackend, pollGpuMetrics } from './llama-monitor/gpu'
 import * as path from 'node:path'
 
 const args = process.argv.slice(2)
@@ -82,15 +81,7 @@ const llamaMonitorState = createLlamaMonitorState({
   uiSettingsPath: llamaMonitorUiSettingsPath,
 })
 
-const llamaBackend = detectGpuBackend()
-
-// Start periodic GPU metrics polling
-const gpuPollInterval = setInterval(() => {
-  const metrics = pollGpuMetrics(llamaBackend)
-  llamaMonitorState.gpuMetrics = metrics
-}, 3000)
-
-app.route("/api", createLlamaMonitorApi({ state: llamaMonitorState, backend: llamaBackend }))
+app.route("/api", createLlamaMonitorApi({ state: llamaMonitorState }))
 
 Bun.serve({
   fetch: app.fetch,

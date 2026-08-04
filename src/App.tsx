@@ -3,10 +3,7 @@ import { computeWaitingDing } from "./ding-policy";
 import { playDing, unlockAudio } from "./sound";
 import { computeStackedSegments } from "./timeseries-stacked";
 import { formatTokenCount } from "./format-token-count";
-import { GpuDashboard } from "./components/GpuDashboard";
 import { ServerControls } from "./components/ServerControls";
-import { ModelBrowser } from "./components/ModelBrowser";
-import { PresetsEditor } from "./components/PresetsEditor";
 
 const APP_VERSION =
   typeof __APP_VERSION__ === "string" && __APP_VERSION__.trim().length > 0 ? __APP_VERSION__ : "0.0.0";
@@ -2090,11 +2087,6 @@ export default function App() {
             </div>
             <div className="llama-monitor-grid">
               <ServerControls />
-              <GpuDashboard />
-            </div>
-            <div className="llama-monitor-grid">
-              <ModelBrowser />
-              <PresetsEditor />
             </div>
 
           </section>

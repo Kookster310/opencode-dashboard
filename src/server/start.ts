@@ -11,7 +11,6 @@ import { getPublicHost, resolveServerHost } from "./host"
 import { resolveStaticFilePath } from "./static-file"
 import { createLlamaMonitorApi } from './llama-monitor/api'
 import { createLlamaMonitorState } from './llama-monitor/state'
-import { detectGpuBackend, pollGpuMetrics } from './llama-monitor/gpu'
 
 function isBunxInvocation(argv: string[]): boolean {
   if (process.env.BUN_INSTALL_CACHE_DIR) return true
@@ -126,15 +125,7 @@ const llamaMonitorState = createLlamaMonitorState({
   uiSettingsPath: llamaMonitorUiSettingsPath,
 })
 
-const llamaBackend = detectGpuBackend()
-
-// Start periodic GPU metrics polling
-const gpuPollInterval = setInterval(() => {
-  const metrics = pollGpuMetrics(llamaBackend)
-  llamaMonitorState.gpuMetrics = metrics
-}, 3000)
-
-app.route('/api', createLlamaMonitorApi({ state: llamaMonitorState, backend: llamaBackend }))
+app.route('/api', createLlamaMonitorApi({ state: llamaMonitorState }))
 
 const distRoot = join(import.meta.dir, '../../dist')
 
@@ -201,7 +192,6 @@ const server = Bun.serve({
 })
 
 const cleanup = () => {
-  if (gpuPollInterval) clearInterval(gpuPollInterval)
   server.stop(false)
 }
 

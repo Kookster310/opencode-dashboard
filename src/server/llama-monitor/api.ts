@@ -2,16 +2,13 @@ import { Hono } from 'hono'
 import * as http from 'node:http'
 import * as https from 'node:https'
 import type {
-  GpuMetricsMap,
   LlamaMetrics,
   ModelPreset,
   DiscoveredModel,
   UiSettings,
-  GpuEnv,
   BrowseResult,
 } from './types'
-import { savePresets, saveUiSettings, saveGpuEnv, pushLog } from './state'
-import { pollGpuMetrics, detectGpuBackend } from './gpu'
+import { savePresets, saveUiSettings, pushLog } from './state'
 import { parsePrometheusMetrics } from './metrics'
 import { scanModelsDir } from './models'
 import { browseDirectory } from './browse'
@@ -34,7 +31,6 @@ async function fetchFromRemote(state: import('./state').LlamaMonitorState, path:
 
 export function createLlamaMonitorApi(opts: {
   state: import('./state').LlamaMonitorState
-  backend: 'nvidia' | 'rocm' | 'none'
 }): Hono {
   const api = new Hono()
 
@@ -62,31 +58,6 @@ export function createLlamaMonitorApi(opts: {
       logs: opts.state.serverLogs.slice(-100),
       metrics: opts.state.llamaMetrics,
     })
-  })
-
-  // GPU metrics
-  api.get('/llama/gpu-metrics', (c) => {
-    const metrics = pollGpuMetrics(opts.backend)
-    opts.state.gpuMetrics = metrics
-    return c.json({ ok: true, metrics })
-  })
-
-  // GPU environment
-  api.get('/llama/gpu-env', (c) => {
-    const detected = detectGpuBackend()
-    return c.json({
-      ok: true,
-      env: opts.state.gpuEnv,
-      architectures: { nvidia: 'Kepler+', amd: 'GCN+' },
-      detected,
-    })
-  })
-
-  api.put('/llama/gpu-env', async (c) => {
-    const updated = await c.req.json<GpuEnv>()
-    opts.state.gpuEnv = updated
-    saveGpuEnv(opts.state)
-    return c.json({ ok: true })
   })
 
   // Models

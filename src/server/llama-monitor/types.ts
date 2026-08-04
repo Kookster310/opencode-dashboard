@@ -1,18 +1,3 @@
-export interface GpuMetrics {
-  temp: number
-  load: number
-  power_consumption: number
-  power_limit: number
-  vram_used: number
-  vram_total: number
-  sclk_mhz: number
-  mclk_mhz: number
-}
-
-export interface GpuMetricsMap {
-  [key: string]: GpuMetrics
-}
-
 export interface LlamaMetrics {
   prompt_tokens_per_sec: number
   generation_tokens_per_sec: number
