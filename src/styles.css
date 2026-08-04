@@ -325,6 +325,61 @@
   border-top: 1px solid rgba(232, 230, 227, 0.06);
 }
 
+/* Tab navigation */
+.tabNav {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  border: 1px solid rgba(31, 36, 38, 0.12);
+  background: rgba(255, 255, 255, 0.56);
+  box-shadow: 0 6px 14px rgba(29, 32, 33, 0.05);
+}
+
+.tabButton {
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 120ms ease, background 120ms ease, border-color 120ms ease;
+  white-space: nowrap;
+}
+
+.tabButton:hover {
+  color: var(--ink);
+}
+
+.tabButton.isActive {
+  color: var(--teal-ink);
+  border-color: rgba(15, 90, 81, 0.2);
+  background: var(--teal-soft);
+}
+
+[data-theme="dark"] .tabNav {
+  border: 1px solid rgba(232, 230, 227, 0.14);
+  background: rgba(40, 44, 48, 0.62);
+}
+
+[data-theme="dark"] .tabButton {
+  color: rgba(232, 230, 227, 0.64);
+}
+
+[data-theme="dark"] .tabButton.isActive {
+  color: var(--teal);
+  border-color: rgba(26, 181, 163, 0.3);
+  background: rgba(26, 181, 163, 0.15);
+}
+
+.llama-monitor-content {
+  min-width: 0;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -1664,4 +1719,325 @@ input.field {
 
 [data-theme="dark"] .model-selected strong {
   color: var(--teal-ink);
+}
+
+/* ── Default layout: dense for 4K ────────────────────────────── */
+
+:root {
+  --radius: 12px;
+  --compact-container-width: min(2400px, calc(100% - 44px));
+}
+
+/* Container: wider for 4K */
+.container {
+  width: var(--compact-container-width);
+  padding: 16px 0 24px;
+}
+
+/* Stack gap */
+.stack {
+  gap: 10px;
+  margin-top: 12px;
+}
+
+/* Brand */
+.brand {
+  gap: 10px;
+}
+
+.brandMark {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+}
+
+.brandMark::after {
+  inset: 5px;
+  border-radius: 8px;
+}
+
+.brandText h1 {
+  font-size: 26px;
+}
+
+.brandText p {
+  font-size: 11px;
+  margin-top: 4px;
+}
+
+/* Cards */
+.card {
+  padding: 12px;
+  border-radius: var(--radius);
+}
+
+.cardHeader {
+  margin-bottom: 8px;
+  gap: 8px;
+}
+
+.cardHeader h2 {
+  font-size: 14px;
+}
+
+/* Key-Value rows */
+.kv {
+  gap: 6px;
+}
+
+.kvRow {
+  grid-template-columns: 120px 1fr;
+  gap: 8px;
+}
+
+.kvKey {
+  font-size: 10px;
+}
+
+.kvVal {
+  font-size: 12px;
+}
+
+/* Tables */
+.table th {
+  font-size: 10px;
+  padding: 8px 6px;
+}
+
+.table td {
+  padding: 8px 6px;
+  font-size: 11px;
+}
+
+/* Divider */
+.divider {
+  height: 1px;
+  margin: 8px 0;
+}
+
+/* Progress */
+.progressWrap {
+  margin-top: 8px;
+}
+
+.progressTrack {
+  height: 8px;
+}
+
+/* Path text */
+.path {
+  font-size: 10px;
+  margin-top: 6px;
+}
+
+/* Badges */
+.badge {
+  width: 22px;
+  height: 22px;
+  font-size: 10px;
+}
+
+/* Pill */
+.pill {
+  padding: 4px 8px;
+  font-size: 10px;
+  gap: 5px;
+}
+
+.pillDot {
+  width: 6px;
+  height: 6px;
+}
+
+/* Buttons */
+.button {
+  padding: 6px 10px;
+  font-size: 11px;
+}
+
+.viewToggleButton {
+  padding: 5px 8px;
+  font-size: 11px;
+}
+
+/* Details summary */
+.detailsSummary {
+  padding: 10px 12px;
+}
+
+.detailsTitle {
+  font-size: 13px;
+}
+
+.chev {
+  width: 8px;
+  height: 8px;
+}
+
+/* Code blocks */
+.code {
+  font-size: 10px;
+  padding: 8px 10px;
+}
+
+/* Task titles */
+.taskTitle {
+  font-size: 12px;
+}
+
+.taskSub {
+  font-size: 10px;
+}
+
+/* Time series */
+.timeSeries {
+  padding: 12px;
+  border-radius: var(--radius);
+}
+
+.timeSeriesHeader {
+  padding: 0 0 8px;
+}
+
+.timeSeriesTitle {
+  font-size: 14px;
+}
+
+.timeSeriesSub {
+  font-size: 10px;
+}
+
+.timeSeriesRowLabel {
+  font-size: 10px;
+  min-width: 100px;
+  width: 100px;
+}
+
+.timeSeriesRows {
+  gap: 2px;
+}
+
+.timeSeriesSvgWrap {
+  height: 20px;
+}
+
+.timeSeriesSvg {
+  height: 20px;
+}
+
+.timeSeriesAxisTop,
+.timeSeriesAxisBottom {
+  height: 12px;
+}
+
+.timeSeriesAxisTopLabels,
+.timeSeriesAxisBottomLabels {
+  font-size: 9px;
+}
+
+/* Grid 2 column */
+.grid2 {
+  gap: 10px;
+}
+
+/* Column stacks inside grid2 */
+.grid2 > .stack {
+  gap: 10px;
+}
+
+/* Topbar */
+.topbar {
+  gap: 14px;
+}
+
+.topbarActions {
+  gap: 6px;
+  padding-top: 2px;
+}
+
+/* Footer */
+.footer {
+  font-size: 10px;
+  padding: 8px 0;
+}
+
+/* Background task toggle */
+.bgTaskToggle {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+}
+
+.bgTaskToggle::before {
+  width: 8px;
+  height: 8px;
+  border-width: 2px;
+  margin-top: -1px;
+  margin-left: -1px;
+}
+
+/* Background task detail */
+.bgTaskDetail {
+  padding: 8px;
+}
+
+.bgTaskDetailHeader {
+  font-size: 10px;
+}
+
+.bgTaskToolCall {
+  padding: 4px 6px;
+  font-size: 10px;
+}
+
+.bgTaskToolCallsGrid {
+  gap: 4px;
+}
+
+/* Metrics grid in llama monitor */
+.metrics-grid {
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 6px;
+}
+
+.metric-item {
+  font-size: 11px;
+}
+
+.metric-label {
+  font-size: 10px;
+}
+
+.metric-value {
+  font-size: 11px;
+}
+
+/* Server controls */
+.server-controls h3 {
+  font-size: 14px;
+}
+
+.server-controls h4 {
+  font-size: 12px;
+}
+
+.empty-state {
+  font-size: 11px;
+}
+
+/* Tab navigation */
+.tabNav {
+  padding: 3px;
+  gap: 2px;
+}
+
+.tabButton {
+  padding: 5px 10px;
+  font-size: 11px;
+}
+
+/* Plan steps (inline style override) */
+.card .mono[style*="font-size: 12px"] {
+  font-size: 10px !important;
+  line-height: 1.4 !important;
 }

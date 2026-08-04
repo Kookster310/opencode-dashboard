@@ -1,18 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 
-interface LlamaMetrics {
-  prompt_tokens_per_sec: number
-  generation_tokens_per_sec: number
-  prompt_tokens_total: number
-  predicted_tokens_total: number
-  kv_cache_tokens: number
-  kv_cache_max: number
-  slots_idle: number
-  slots_processing: number
-  requests_processing: number
-  status: string
-}
-
 const TPS_HISTORY_SIZE = 30
 
 function TpsLineChart({ values, color, label }: { values: number[]; color: string; label: string }) {
@@ -51,12 +38,12 @@ function TpsLineChart({ values, color, label }: { values: number[]; color: strin
   }, [minVal, range, chartHeight, padding.top])
 
   return (
-    <div>
-      <div style={{ fontSize: 11, fontWeight: 600, color: color, marginBottom: 4 }}>{label}</div>
+    <div style={{ marginBottom: 4 }}>
+      <div style={{ fontSize: 9, fontWeight: 600, color: color, marginBottom: 4 }}>{label}</div>
       <svg
         viewBox={`0 0 ${width} ${height}`}
-        style={{ width: '100%', height: 'auto', display: 'block' }}
-        preserveAspectRatio="xMidYMid meet"
+        style={{ width: '100%', maxWidth: '100%', display: 'block' }}
+        preserveAspectRatio="none"
       >
         {gridLines.map((line, i) => (
           <g key={i}>
@@ -73,7 +60,7 @@ function TpsLineChart({ values, color, label }: { values: number[]; color: strin
               x={padding.left - 5}
               y={line.y + 4}
               textAnchor="end"
-              fontSize={9}
+              fontSize={7}
               fill="var(--muted)"
               fontFamily="monospace"
             >
@@ -97,12 +84,6 @@ function TpsLineChart({ values, color, label }: { values: number[]; color: strin
 }
 
 export function ServerControls() {
-  const [connected, setConnected] = useState(false)
-  const [metrics, setMetrics] = useState<LlamaMetrics | null>(null)
-  const [url, setUrl] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [saveMsg, setSaveMsg] = useState('')
   const [promptHistory, setPromptHistory] = useState<number[]>([])
   const [genHistory, setGenHistory] = useState<number[]>([])
   const promptRef = useRef<number[]>([])
@@ -115,9 +96,6 @@ export function ServerControls() {
         const status = await statusRes.json()
 
         if (status.ok && status.metrics) {
-          setConnected(status.connected)
-          setMetrics(status.metrics)
-
           // Track TPS history
           const newPrompt = [...promptRef.current, status.metrics.prompt_tokens_per_sec].slice(-TPS_HISTORY_SIZE)
           const newGen = [...genRef.current, status.metrics.generation_tokens_per_sec].slice(-TPS_HISTORY_SIZE)
@@ -128,8 +106,6 @@ export function ServerControls() {
         }
       } catch {
         // ignore
-      } finally {
-        setLoading(false)
       }
     }
 
@@ -138,126 +114,16 @@ export function ServerControls() {
     return () => clearInterval(interval)
   }, [])
 
-  const handleSave = async () => {
-    setSaving(true)
-    setSaveMsg('')
-    try {
-      await fetch((window.API_BASE || '') + '/api/llama/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ llama_server_url: url.trim(), models_dir: '', gpu_backend: 'none' }),
-      })
-      setSaveMsg('Saved!')
-      setTimeout(() => setSaveMsg(''), 2000)
-    } catch {
-      setSaveMsg('Failed to save')
-    } finally {
-      setSaving(false)
-    }
-  }
+  const hasData = promptHistory.length >= 2 || genHistory.length >= 2
 
-  if (loading) {
-    return (
-      <div className="server-controls">
-        <h3>llama.cpp Server</h3>
-        <p className="empty-state">Loading...</p>
-      </div>
-    )
+  if (!hasData) {
+    return <div style={{ padding: '16px 0', textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>Waiting for data...</div>
   }
 
   return (
-    <div className="server-controls">
-      <h3>llama.cpp Server</h3>
-
-      <div className="server-config">
-        <h4>Connection</h4>
-        <div>
-          <label htmlFor="llama-server-url">Server URL</label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <input
-              id="llama-server-url"
-              type="text"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="http://10.10.42.94:8080"
-              className="field"
-              style={{ flex: 1 }}
-            />
-            <button onClick={handleSave} className="btn btn-start" disabled={saving}>
-              {saving ? 'Saving...' : 'Save'}
-            </button>
-            {saveMsg && <span style={{ fontSize: 12, color: 'var(--teal)', marginLeft: 4 }}>{saveMsg}</span>}
-          </div>
-        </div>
-
-        <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <span
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              fontSize: 13,
-              fontWeight: 500,
-              color: connected ? 'var(--green)' : 'var(--red)',
-            }}
-          >
-            <span
-              style={{
-                display: 'inline-block',
-                width: 8,
-                height: 8,
-                borderRadius: '50%',
-                backgroundColor: connected ? 'var(--green)' : 'var(--red)',
-                boxShadow: `0 0 6px ${connected ? 'var(--green)' : 'var(--red)'}80`,
-              }}
-            />
-            {connected ? 'Connected' : 'Disconnected'}
-          </span>
-          {url && <span style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'monospace' }}>{url}</span>}
-        </div>
-      </div>
-
-      {(promptHistory.length >= 2 || genHistory.length >= 2) && (
-        <div>
-          <h4>TPS History</h4>
-          <div style={{ background: 'var(--paper)', borderRadius: 8, padding: '8px 12px 12px' }}>
-            <TpsLineChart values={promptHistory} color="var(--teal)" label="Prompt TPS" />
-            <TpsLineChart values={genHistory} color="var(--sand)" label="Generation TPS" />
-          </div>
-        </div>
-      )}
-
-      {metrics && (
-        <div className="server-metrics">
-          <h4>Live Metrics</h4>
-          <div className="metrics-grid">
-            <div className="metric-item">
-              <span className="metric-label">Prompt TPS:</span>
-              <span className="metric-value">{metrics.prompt_tokens_per_sec.toFixed(1)}</span>
-            </div>
-            <div className="metric-item">
-              <span className="metric-label">Gen TPS:</span>
-              <span className="metric-value">{metrics.generation_tokens_per_sec.toFixed(1)}</span>
-            </div>
-            <div className="metric-item">
-              <span className="metric-label">Prompt Total:</span>
-              <span className="metric-value">{metrics.prompt_tokens_total}</span>
-            </div>
-            <div className="metric-item">
-              <span className="metric-label">Gen Total:</span>
-              <span className="metric-value">{metrics.predicted_tokens_total}</span>
-            </div>
-            <div className="metric-item">
-              <span className="metric-label">KV Cache:</span>
-              <span className="metric-value">{metrics.kv_cache_tokens} / {metrics.kv_cache_max}</span>
-            </div>
-            <div className="metric-item">
-              <span className="metric-label">Slots:</span>
-              <span className="metric-value">{metrics.slots_processing} / {metrics.slots_idle + metrics.slots_processing}</span>
-            </div>
-          </div>
-        </div>
-      )}
+    <div style={{ background: 'var(--paper)', borderRadius: 8, padding: '8px 12px 12px' }}>
+      <TpsLineChart values={promptHistory} color="var(--teal)" label="Prompt TPS" />
+      <TpsLineChart values={genHistory} color="var(--sand)" label="Generation TPS" />
     </div>
   )
 }

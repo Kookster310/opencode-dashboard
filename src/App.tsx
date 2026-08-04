@@ -10,7 +10,9 @@ const APP_VERSION =
 
 const APP_TITLE = `Agent Dashboard (v${APP_VERSION})`;
 
-const SELECTED_SOURCE_ID_STORAGE_KEY = "omo-dashboard:selectedSourceId";
+const SELECTED_SOURCE_ID_STORAGE_KEY = "selectedSourceId";
+const LLAMA_HOST_STORAGE_KEY = "llamaHost";
+const LLAMA_HOST_DEFAULT = "http://localhost:8080";
 
 type BackgroundTask = {
   id: string;
@@ -1070,6 +1072,7 @@ export default function App() {
     mediaQuery.addEventListener("change", handleChange);
     return () => mediaQuery.removeEventListener("change", handleChange);
   }, []);
+
   const [errorHint, setErrorHint] = React.useState<string | null>(null);
 
   const [sourcesState, setSourcesState] = React.useState<"idle" | "loading" | "ok" | "error">("idle");
@@ -1092,6 +1095,43 @@ export default function App() {
   const lastLeftWaitingAtRef = React.useRef<number | null>(null);
   const prevPlanCompletedRef = React.useRef<number | null>(null);
   const prevPlanTotalRef = React.useRef<number | null>(null);
+
+  // llama.cpp host
+  const [llamaHost, setLlamaHost] = React.useState(() => {
+    try {
+      return localStorage.getItem(LLAMA_HOST_STORAGE_KEY) || LLAMA_HOST_DEFAULT;
+    } catch {
+      return LLAMA_HOST_DEFAULT;
+    }
+  });
+  const [llamaConnected, setLlamaConnected] = React.useState<boolean | null>(null);
+  const [checking, setChecking] = React.useState(false);
+
+  const handleLlamaHostChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value.trim();
+    setLlamaHost(val);
+    try {
+      localStorage.setItem(LLAMA_HOST_STORAGE_KEY, val);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleConnect = React.useCallback(async () => {
+    setChecking(true);
+    try {
+      const url = `${llamaHost}/metrics`;
+      console.log("[llama] connecting to", url);
+      const res = await fetch(url, { signal: AbortSignal.timeout(3000) });
+      console.log("[llama] status:", res.status, res.ok);
+      setLlamaConnected(res.ok);
+    } catch (err) {
+      console.log("[llama] error:", err);
+      setLlamaConnected(false);
+    } finally {
+      setChecking(false);
+    }
+  }, [llamaHost]);
 
   const servedFrom = React.useMemo(() => {
     if (typeof window === "undefined") return "";
@@ -1590,506 +1630,530 @@ export default function App() {
             <button className="button" type="button" onClick={onCopyRawJson}>
               {copyState === "ok" ? "Copied" : copyState === "err" ? "Copy failed" : "Copy raw JSON"}
             </button>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <div
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: "50%",
+                  background: llamaConnected === true ? "#186" : llamaConnected === false ? "#a33" : "#999",
+                  boxShadow: llamaConnected === true ? "0 0 6px #186" : "none",
+                  flexShrink: 0,
+                }}
+              />
+              <input
+                className="field"
+                type="url"
+                placeholder="llama.cpp host"
+                value={llamaHost}
+                onChange={handleLlamaHostChange}
+                onKeyDown={(e) => e.key === "Enter" && handleConnect()}
+                style={{ width: 240 }}
+                aria-label="llama.cpp host"
+              />
+              <button
+                className="button"
+                type="button"
+                onClick={handleConnect}
+                disabled={checking}
+                style={{ minWidth: 70 }}
+              >
+                {checking ? "…" : "Connect"}
+              </button>
+            </div>
           </div>
         </header>
 
         <main className="stack">
           <TimeSeriesActivitySection timeSeries={data.timeSeries} />
 
-          <section className="grid2">
-            <article className="card">
-              <div className="cardHeader">
-                <h2>Main session</h2>
-                <span className={`pill pill-${statusTone(data.mainSession.statusPill)}`}>{data.mainSession.statusPill}</span>
-              </div>
-              <div className="kv">
-                <div className="kvRow">
-                  <div className="kvKey">AGENT</div>
-                  <div className="kvVal mono">{data.mainSession.agent}</div>
-                </div>
-                <div className="kvRow">
-                  <div className="kvKey">CURRENT TOOL</div>
-                  <div className="kvVal mono">{data.mainSession.currentTool}</div>
-                </div>
-                <div className="kvRow">
-                  <div className="kvKey">CURRENT MODEL</div>
-                  <div className="kvVal mono">{data.mainSession.currentModel}</div>
-                </div>
-                <div className="kvRow">
-                  <div className="kvKey">LAST UPDATED</div>
-                  <div className="kvVal">{data.mainSession.lastUpdatedLabel}</div>
-                </div>
-              </div>
-              <div className="divider" />
-              <div className="kvRow">
-                <div className="kvKey">SESSION</div>
-                <div className="kvVal mono">{data.mainSession.session}</div>
-              </div>
-            </article>
-
-            <article className="card">
-              <div className="cardHeader">
-                <h2>Plan progress and todos</h2>
-                <span className="muted mono">
-                  {planTodosView === "plan"
-                    ? `todos ${todoSummary.completed}/${todoSummary.total || 0}`
-                    : `plan ${data.planProgress.completed}/${data.planProgress.total || 0}`}
-                </span>
-              </div>
-              <div className="viewToggle" role="tablist" aria-label="Plan and todos view">
-                <button
-                  className={`viewToggleButton ${planTodosView === "plan" ? "isActive" : ""}`}
-                  type="button"
-                  role="tab"
-                  aria-selected={planTodosView === "plan"}
-                  onClick={() => setPlanTodosView("plan")}
-                >
-                  Plan {data.planProgress.completed}/{data.planProgress.total || 0}
-                </button>
-                <button
-                  className={`viewToggleButton ${planTodosView === "todos" ? "isActive" : ""}`}
-                  type="button"
-                  role="tab"
-                  aria-selected={planTodosView === "todos"}
-                  onClick={() => setPlanTodosView("todos")}
-                >
-                  Todos {todoSummary.completed}/{todoSummary.total || 0}
-                </button>
-              </div>
-              {planTodosView === "plan" ? (
-                <>
-                  <div className="cardHeader" style={{ marginTop: 8 }}>
-                    <span className={`pill pill-${statusTone(data.planProgress.statusPill)}`}>{data.planProgress.statusPill}</span>
-                    <button
-                      className="button"
-                      type="button"
-                      onClick={() => setPlanOpen((v) => !v)}
-                      aria-expanded={planOpen}
-                    >
-                      {planOpen ? "Hide steps" : "Show steps"}
-                    </button>
+          <div className="grid2">
+            {/* Left column */}
+            <div className="stack">
+              <div style={{ display: "flex", gap: "18px" }}>
+                <article className="card" style={{ flex: 1 }}>
+                  <div className="cardHeader">
+                    <h2>Main session</h2>
+                    <span className={`pill pill-${statusTone(data.mainSession.statusPill)}`}>{data.mainSession.statusPill}</span>
                   </div>
                   <div className="kv">
                     <div className="kvRow">
-                      <div className="kvKey">NAME</div>
-                      <div className="kvVal mono">{data.planProgress.name}</div>
+                      <div className="kvKey">AGENT</div>
+                      <div className="kvVal mono">{data.mainSession.agent}</div>
                     </div>
                     <div className="kvRow">
-                      <div className="kvKey">PROGRESS</div>
-                      <div className="kvVal">
-                        <span className="mono">
-                          {data.planProgress.completed}/{data.planProgress.total || "?"}
-                        </span>
-                        <span className="muted"> - {Math.round(planPercent)}%</span>
+                      <div className="kvKey">CURRENT TOOL</div>
+                      <div className="kvVal mono">{data.mainSession.currentTool}</div>
+                    </div>
+                    <div className="kvRow">
+                      <div className="kvKey">CURRENT MODEL</div>
+                      <div className="kvVal mono">{data.mainSession.currentModel}</div>
+                    </div>
+                    <div className="kvRow">
+                      <div className="kvKey">LAST UPDATED</div>
+                      <div className="kvVal">{data.mainSession.lastUpdatedLabel}</div>
+                    </div>
+                  </div>
+                  <div className="divider" />
+                  <div className="kvRow">
+                    <div className="kvKey">SESSION</div>
+                    <div className="kvVal mono">{data.mainSession.session}</div>
+                  </div>
+                </article>
+
+                <article className="card" style={{ flex: 1 }}>
+                  <div className="cardHeader">
+                    <h2>Plan progress and todos</h2>
+                    <span className="muted mono">
+                      {planTodosView === "plan"
+                        ? `todos ${todoSummary.completed}/${todoSummary.total || 0}`
+                        : `plan ${data.planProgress.completed}/${data.planProgress.total || 0}`}
+                    </span>
+                  </div>
+                  <div className="viewToggle" role="tablist" aria-label="Plan and todos view">
+                    <button
+                      className={`viewToggleButton ${planTodosView === "plan" ? "isActive" : ""}`}
+                      type="button"
+                      role="tab"
+                      aria-selected={planTodosView === "plan"}
+                      onClick={() => setPlanTodosView("plan")}
+                    >
+                      Plan {data.planProgress.completed}/{data.planProgress.total || 0}
+                    </button>
+                    <button
+                      className={`viewToggleButton ${planTodosView === "todos" ? "isActive" : ""}`}
+                      type="button"
+                      role="tab"
+                      aria-selected={planTodosView === "todos"}
+                      onClick={() => setPlanTodosView("todos")}
+                    >
+                      Todos {todoSummary.completed}/{todoSummary.total || 0}
+                    </button>
+                  </div>
+                  {planTodosView === "plan" ? (
+                    <>
+                      <div className="cardHeader" style={{ marginTop: 8 }}>
+                        <span className={`pill pill-${statusTone(data.planProgress.statusPill)}`}>{data.planProgress.statusPill}</span>
+                        <button
+                          className="button"
+                          type="button"
+                          onClick={() => setPlanOpen((v) => !v)}
+                          aria-expanded={planOpen}
+                        >
+                          {planOpen ? "Hide steps" : "Show steps"}
+                        </button>
+                      </div>
+                      <div className="kv">
+                        <div className="kvRow">
+                          <div className="kvKey">NAME</div>
+                          <div className="kvVal mono">{data.planProgress.name}</div>
+                        </div>
+                        <div className="kvRow">
+                          <div className="kvKey">PROGRESS</div>
+                          <div className="kvVal">
+                            <span className="mono">
+                              {data.planProgress.completed}/{data.planProgress.total || "?"}
+                            </span>
+                            <span className="muted"> - {Math.round(planPercent)}%</span>
+                          </div>
+                        </div>
+                      </div>
+                      {planOpen ? (
+                        <div className="divider" />
+                      ) : null}
+                      {planOpen ? (
+                        <div className="mono" style={{ fontSize: 12, lineHeight: 1.5 }}>
+                          {(data.planProgress.steps ?? []).length > 0
+                            ? (data.planProgress.steps ?? []).map((s, idx) => (
+                                <div key={`${idx}-${s.checked ? "x" : "_"}-${s.text}`}>[{s.checked ? "x" : " "}] {s.text || "(empty)"}</div>
+                              ))
+                            : "(no steps detected)"}
+                        </div>
+                      ) : null}
+                      <div className="progressWrap">
+                        <div className="progressTrack">
+                          <div className="progressFill" style={{ width: `${planPercent}%` }} />
+                        </div>
+                      </div>
+                      <div className="mono path">{data.planProgress.path}</div>
+                    </>
+                  ) : null}
+                  {planTodosView === "todos" ? (
+                    <>
+                      {data.todos.length > 0 ? (
+                        <div className="tableWrap">
+                          <table className="table">
+                            <thead>
+                              <tr>
+                                <th>CONTENT</th>
+                                <th>STATUS</th>
+                                <th>PRIORITY</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {data.todos.map((todo) => (
+                                <tr key={todo.position}>
+                                  <td className="mono">{todo.content}</td>
+                                  <td>
+                                    <span className={`pill pill-${statusTone(todo.status)}`}>
+                                      {todo.status}
+                                    </span>
+                                  </td>
+                                  <td className="mono">{todo.priority}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <div className="muted" style={{ padding: "16px 0" }}>
+                          No todos detected yet.
+                        </div>
+                      )}
+                    </>
+                  ) : null}
+                </article>
+              </div>
+
+              <section className="card">
+                <div className="cardHeader">
+                  <h2>Main session tasks</h2>
+                  <span className="badge">{data.mainSessionTasks.length}</span>
+                </div>
+
+                <div className="tableWrap">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>DESCRIPTION</th>
+                        <th>AGENT</th>
+                        <th>LAST MODEL</th>
+                        <th>STATUS</th>
+                        <th>CALLS</th>
+                        <th>LAST TOOL</th>
+                        <th>LINE</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.mainSessionTasks.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="muted" style={{ padding: 16 }}>
+                            No tasks yet.
+                          </td>
+                        </tr>
+                      ) : null}
+                      {data.mainSessionTasks.map((t) => {
+                        const expanded = expandedMainTaskIds.has(t.id);
+                        const sessionId = toNonEmptyString(t.sessionId);
+                        const detailId = `main-toolcalls-${t.id}`;
+                        const entry = sessionId ? toolCallsBySession.get(sessionId) : null;
+                        const toolCalls = entry?.data?.ok ? entry.data.toolCalls : [];
+                        const showCapped = Boolean(entry?.data?.truncated);
+                        const caps = entry?.data?.caps;
+                        const showLoading = entry?.state === "loading";
+                        const showError = entry?.state === "error" && !entry?.data?.ok;
+                        const empty = sessionId ? toolCalls.length === 0 && !showLoading && !showError : true;
+
+                        return (
+                          <React.Fragment key={t.id}>
+                            <tr>
+                              <td>
+                                <div className="bgTaskRowTitleWrap">
+                                  <button
+                                    type="button"
+                                    className="bgTaskToggle"
+                                    onClick={() => toggleMainTaskExpanded(t)}
+                                    aria-expanded={expanded}
+                                    aria-controls={detailId}
+                                    title={expanded ? "Collapse" : "Expand"}
+                                    aria-label={expanded ? "Collapse tool calls" : "Expand tool calls"}
+                                  />
+                                  <div className="bgTaskRowTitleText">
+                                    <div className="taskTitle">{t.description}</div>
+                                    {t.subline ? <div className="taskSub mono">{t.subline}</div> : null}
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="mono">{t.agent}</td>
+                              <td className="mono">{t.lastModel}</td>
+                              <td>
+                                <span className={`pill pill-${statusTone(t.status)}`}>{t.status}</span>
+                              </td>
+                              <td className="mono">{t.toolCalls}</td>
+                              <td className="mono">{t.lastTool}</td>
+                              <td className="mono muted">{formatBackgroundTaskTimelineCell(t.status, t.timeline)}</td>
+                            </tr>
+
+                            {expanded ? (
+                              <tr>
+                                <td colSpan={7} className="bgTaskDetailCell">
+                                  <section id={detailId} aria-label="Tool calls" className="bgTaskDetail">
+                                    <div className="mono muted bgTaskDetailHeader">
+                                      Tool calls (metadata only){showLoading && toolCalls.length > 0 ? " - refreshing" : ""}
+                                      {showCapped
+                                        ? ` - capped${caps ? ` (max ${caps.maxMessages} messages / ${caps.maxToolCalls} tool calls)` : ""}`
+                                        : ""}
+                                    </div>
+
+                                    {!sessionId ? (
+                                      <div className="muted bgTaskDetailEmpty">No session id available for this task.</div>
+                                    ) : showError ? (
+                                      <div className="muted bgTaskDetailEmpty">Tool calls unavailable.</div>
+                                    ) : showLoading && toolCalls.length === 0 ? (
+                                      <div className="muted bgTaskDetailEmpty">Loading tool calls...</div>
+                                    ) : empty ? (
+                                      <div className="muted bgTaskDetailEmpty">No tool calls recorded.</div>
+                                    ) : (
+                                      <div className="bgTaskToolCallsGrid">
+                                        {toolCalls.map((c) => (
+                                          <div key={c.callId} className="bgTaskToolCall">
+                                            <div className="bgTaskToolCallRow">
+                                              <div className="mono bgTaskToolCallTool" title={c.tool}>
+                                                {c.tool}
+                                              </div>
+                                              <div className="mono muted bgTaskToolCallStatus" title={c.status}>
+                                                {c.status}
+                                              </div>
+                                            </div>
+                                            <div className="mono muted bgTaskToolCallTime">{formatTime(c.createdAtMs)}</div>
+                                            <div className="mono muted bgTaskToolCallId" title={c.callId}>
+                                              {c.callId}
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </section>
+                                </td>
+                              </tr>
+                            ) : null}
+                          </React.Fragment>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              <section className="card">
+                <div className="cardHeader">
+                  <h2>Background tasks</h2>
+                  <span className="badge">{data.backgroundTasks.length}</span>
+                </div>
+                <div className="tableWrap">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>DESCRIPTION</th>
+                        <th>AGENT</th>
+                        <th>LAST MODEL</th>
+                        <th>STATUS</th>
+                        <th>CALLS</th>
+                        <th>LAST TOOL</th>
+                        <th>LINE</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.backgroundTasks.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="muted" style={{ padding: 16 }}>
+                            No background tasks yet.
+                          </td>
+                        </tr>
+                      ) : null}
+                      {data.backgroundTasks.map((t) => {
+                        const expanded = expandedBgTaskIds.has(t.id);
+                        const sessionId = toNonEmptyString(t.sessionId);
+                        const detailId = `bg-toolcalls-${t.id}`;
+                        const entry = sessionId ? toolCallsBySession.get(sessionId) : null;
+                        const toolCalls = entry?.data?.ok ? entry.data.toolCalls : [];
+                        const showCapped = Boolean(entry?.data?.truncated);
+                        const caps = entry?.data?.caps;
+                        const showLoading = entry?.state === "loading";
+                        const showError = entry?.state === "error" && !entry?.data?.ok;
+                        const empty = sessionId ? toolCalls.length === 0 && !showLoading && !showError : true;
+
+                        return (
+                          <React.Fragment key={t.id}>
+                            <tr>
+                              <td>
+                                <div className="bgTaskRowTitleWrap">
+                                  <button
+                                    type="button"
+                                    className="bgTaskToggle"
+                                    onClick={() => toggleBackgroundTaskExpanded(t)}
+                                    aria-expanded={expanded}
+                                    aria-controls={detailId}
+                                    title={expanded ? "Collapse" : "Expand"}
+                                    aria-label={expanded ? "Collapse tool calls" : "Expand tool calls"}
+                                  />
+                                  <div className="bgTaskRowTitleText">
+                                    <div className="taskTitle">{t.description}</div>
+                                    {t.subline ? <div className="taskSub mono">{t.subline}</div> : null}
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="mono">{t.agent}</td>
+                              <td className="mono">{t.lastModel}</td>
+                              <td>
+                                <span className={`pill pill-${statusTone(t.status)}`}>{t.status}</span>
+                              </td>
+                              <td className="mono">{t.toolCalls}</td>
+                              <td className="mono">{t.lastTool}</td>
+                              <td className="mono muted">{formatBackgroundTaskTimelineCell(t.status, t.timeline)}</td>
+                            </tr>
+
+                            {expanded ? (
+                              <tr>
+                                <td colSpan={7} className="bgTaskDetailCell">
+                                  <section id={detailId} aria-label="Tool calls" className="bgTaskDetail">
+                                    <div className="mono muted bgTaskDetailHeader">
+                                      Tool calls (metadata only){showLoading && toolCalls.length > 0 ? " - refreshing" : ""}
+                                      {showCapped
+                                        ? ` - capped${caps ? ` (max ${caps.maxMessages} messages / ${caps.maxToolCalls} tool calls)` : ""}`
+                                        : ""}
+                                    </div>
+
+                                    {!sessionId ? (
+                                      <div className="muted bgTaskDetailEmpty">
+                                        No session id available for this task.
+                                      </div>
+                                    ) : showError ? (
+                                      <div className="muted bgTaskDetailEmpty">
+                                        Tool calls unavailable.
+                                      </div>
+                                    ) : showLoading && toolCalls.length === 0 ? (
+                                      <div className="muted bgTaskDetailEmpty">
+                                        Loading tool calls...
+                                      </div>
+                                    ) : empty ? (
+                                      <div className="muted bgTaskDetailEmpty">
+                                        No tool calls recorded.
+                                      </div>
+                                    ) : (
+                                      <div className="bgTaskToolCallsGrid">
+                                        {toolCalls.map((c) => (
+                                          <div key={c.callId} className="bgTaskToolCall">
+                                            <div className="bgTaskToolCallRow">
+                                              <div className="mono bgTaskToolCallTool" title={c.tool}>
+                                                {c.tool}
+                                              </div>
+                                              <div className="mono muted bgTaskToolCallStatus" title={c.status}>
+                                                {c.status}
+                                              </div>
+                                            </div>
+                                            <div className="mono muted bgTaskToolCallTime">{formatTime(c.createdAtMs)}</div>
+                                            <div className="mono muted bgTaskToolCallId" title={c.callId}>
+                                              {c.callId}
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </section>
+                                </td>
+                              </tr>
+                            ) : null}
+                          </React.Fragment>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </div>
+
+            {/* Right column */}
+            <div className="stack">
+              <section className="card">
+                <div className="cardHeader">
+                  <h2>Token usage</h2>
+                  <span className="badge">{data.tokenUsage.rows.length}</span>
+                </div>
+
+                <div className="tableWrap">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>MODEL</th>
+                        <th>INPUT</th>
+                        <th>OUTPUT</th>
+                        <th>REASONING</th>
+                        <th>READ</th>
+                        <th>WRITE</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td className="mono">TOTAL</td>
+                        <td className="mono">{formatTokenCount(tokenUsageTotalsForUi.input)}</td>
+                        <td className="mono">{formatTokenCount(tokenUsageTotalsForUi.output)}</td>
+                        <td className="mono">{formatTokenCount(tokenUsageTotalsForUi.reasoning)}</td>
+                        <td className="mono">{formatTokenCount(tokenUsageTotalsForUi.cacheRead)}</td>
+                        <td className="mono">{formatTokenCount(tokenUsageTotalsForUi.cacheWrite)}</td>
+                      </tr>
+
+                      {tokenUsageRowsSorted.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="muted" style={{ padding: 16 }}>
+                            No token usage detected yet.
+                          </td>
+                        </tr>
+                      ) : null}
+                    </tbody>
+                  </table>
+                </div>
+
+                {tokenUsageRowsSorted.length > 0 ? (
+                  <details className="details">
+                    <summary className="detailsSummary">
+                      <span className="detailsTitle">Model breakdown ({tokenUsageRowsSorted.length})</span>
+                      <span className="chev" aria-hidden="true" />
+                    </summary>
+                    <div className="detailsBody">
+                      <div className="tableWrap">
+                        <table className="table">
+                          <thead>
+                            <tr>
+                              <th>MODEL</th>
+                              <th>INPUT</th>
+                              <th>OUTPUT</th>
+                              <th>REASONING</th>
+                              <th>READ</th>
+                              <th>WRITE</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {tokenUsageRowsSorted.map((r) => (
+                              <tr key={r.model}>
+                                <td className="mono" title={r.model}>
+                                  {r.model}
+                                </td>
+                                <td className="mono">{formatTokenCount(r.input)}</td>
+                                <td className="mono">{formatTokenCount(r.output)}</td>
+                                <td className="mono">{formatTokenCount(r.reasoning)}</td>
+                                <td className="mono">{formatTokenCount(r.cacheRead)}</td>
+                                <td className="mono">{formatTokenCount(r.cacheWrite)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
                     </div>
-                  </div>
-                  {planOpen ? (
-                    <div className="divider" />
-                  ) : null}
-                  {planOpen ? (
-                    <div className="mono" style={{ fontSize: 12, lineHeight: 1.5 }}>
-                      {(data.planProgress.steps ?? []).length > 0
-                        ? (data.planProgress.steps ?? []).map((s, idx) => (
-                            <div key={`${idx}-${s.checked ? "x" : "_"}-${s.text}`}>[{s.checked ? "x" : " "}] {s.text || "(empty)"}</div>
-                          ))
-                        : "(no steps detected)"}
-                    </div>
-                  ) : null}
-                  <div className="progressWrap">
-                    <div className="progressTrack">
-                      <div className="progressFill" style={{ width: `${planPercent}%` }} />
-                    </div>
-                  </div>
-                  <div className="mono path">{data.planProgress.path}</div>
-                </>
-              ) : null}
-              {planTodosView === "todos" ? (
-                <>
-                  {data.todos.length > 0 ? (
-                    <div className="tableWrap">
-                      <table className="table">
-                        <thead>
-                          <tr>
-                            <th>CONTENT</th>
-                            <th>STATUS</th>
-                            <th>PRIORITY</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {data.todos.map((todo) => (
-                            <tr key={todo.position}>
-                              <td className="mono">{todo.content}</td>
-                              <td>
-                                <span className={`pill pill-${statusTone(todo.status)}`}>
-                                  {todo.status}
-                                </span>
-                              </td>
-                              <td className="mono">{todo.priority}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    <div className="muted" style={{ padding: "16px 0" }}>
-                      No todos detected yet.
-                    </div>
-                  )}
-                </>
-              ) : null}
-            </article>
-          </section>
+                  </details>
+                ) : null}
+              </section>
 
-          <section className="card">
-            <div className="cardHeader">
-              <h2>Token usage</h2>
-              <span className="badge">{data.tokenUsage.rows.length}</span>
-            </div>
-
-            <div className="tableWrap">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>MODEL</th>
-                    <th>INPUT</th>
-                    <th>OUTPUT</th>
-                    <th>REASONING</th>
-                    <th>CACHE.READ</th>
-                    <th>CACHE.WRITE</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td className="mono">TOTAL</td>
-                    <td className="mono">{formatTokenCount(tokenUsageTotalsForUi.input)}</td>
-                    <td className="mono">{formatTokenCount(tokenUsageTotalsForUi.output)}</td>
-                    <td className="mono">{formatTokenCount(tokenUsageTotalsForUi.reasoning)}</td>
-                    <td className="mono">{formatTokenCount(tokenUsageTotalsForUi.cacheRead)}</td>
-                    <td className="mono">{formatTokenCount(tokenUsageTotalsForUi.cacheWrite)}</td>
-                  </tr>
-
-                  {tokenUsageRowsSorted.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="muted" style={{ padding: 16 }}>
-                        No token usage detected yet.
-                      </td>
-                    </tr>
-                  ) : null}
-                </tbody>
-              </table>
-            </div>
-
-            {tokenUsageRowsSorted.length > 0 ? (
-              <details className="details">
-                <summary className="detailsSummary">
-                  <span className="detailsTitle">Model breakdown ({tokenUsageRowsSorted.length})</span>
-                  <span className="chev" aria-hidden="true" />
-                </summary>
-                <div className="detailsBody">
-                  <div className="tableWrap">
-                    <table className="table">
-                      <thead>
-                        <tr>
-                          <th>MODEL</th>
-                          <th>INPUT</th>
-                          <th>OUTPUT</th>
-                          <th>REASONING</th>
-                          <th>CACHE.READ</th>
-                          <th>CACHE.WRITE</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {tokenUsageRowsSorted.map((r) => (
-                          <tr key={r.model}>
-                            <td className="mono" title={r.model}>
-                              {r.model}
-                            </td>
-                            <td className="mono">{formatTokenCount(r.input)}</td>
-                            <td className="mono">{formatTokenCount(r.output)}</td>
-                            <td className="mono">{formatTokenCount(r.reasoning)}</td>
-                            <td className="mono">{formatTokenCount(r.cacheRead)}</td>
-                            <td className="mono">{formatTokenCount(r.cacheWrite)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+              <section className="card">
+                <div className="cardHeader">
+                  <h2>llama.cpp Monitor</h2>
                 </div>
-              </details>
-            ) : null}
-          </section>
-
-          <section className="card">
-            <div className="cardHeader">
-              <h2>Main session tasks</h2>
-              <span className="badge">{data.mainSessionTasks.length}</span>
+                <div className="llama-monitor-content">
+                  <ServerControls />
+                </div>
+              </section>
             </div>
-
-            <div className="tableWrap">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>DESCRIPTION</th>
-                    <th>AGENT</th>
-                    <th>LAST MODEL</th>
-                    <th>STATUS</th>
-                    <th>TOOL CALLS</th>
-                    <th>LAST TOOL</th>
-                    <th>TIMELINE</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.mainSessionTasks.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="muted" style={{ padding: 16 }}>
-                        No main session tasks detected yet.
-                      </td>
-                    </tr>
-                  ) : null}
-                  {data.mainSessionTasks.map((t) => {
-                    const expanded = expandedMainTaskIds.has(t.id);
-                    const sessionId = toNonEmptyString(t.sessionId);
-                    const detailId = `main-toolcalls-${t.id}`;
-                    const entry = sessionId ? toolCallsBySession.get(sessionId) : null;
-                    const toolCalls = entry?.data?.ok ? entry.data.toolCalls : [];
-                    const showCapped = Boolean(entry?.data?.truncated);
-                    const caps = entry?.data?.caps;
-                    const showLoading = entry?.state === "loading";
-                    const showError = entry?.state === "error" && !entry?.data?.ok;
-                    const empty = sessionId ? toolCalls.length === 0 && !showLoading && !showError : true;
-
-                    return (
-                      <React.Fragment key={t.id}>
-                        <tr>
-                          <td>
-                            <div className="bgTaskRowTitleWrap">
-                              <button
-                                type="button"
-                                className="bgTaskToggle"
-                                onClick={() => toggleMainTaskExpanded(t)}
-                                aria-expanded={expanded}
-                                aria-controls={detailId}
-                                title={expanded ? "Collapse" : "Expand"}
-                                aria-label={expanded ? "Collapse tool calls" : "Expand tool calls"}
-                              />
-                              <div className="bgTaskRowTitleText">
-                                <div className="taskTitle">{t.description}</div>
-                                {t.subline ? <div className="taskSub mono">{t.subline}</div> : null}
-                              </div>
-                            </div>
-                          </td>
-                          <td className="mono">{t.agent}</td>
-                          <td className="mono">{t.lastModel}</td>
-                          <td>
-                            <span className={`pill pill-${statusTone(t.status)}`}>{t.status}</span>
-                          </td>
-                          <td className="mono">{t.toolCalls}</td>
-                          <td className="mono">{t.lastTool}</td>
-                          <td className="mono muted">{formatBackgroundTaskTimelineCell(t.status, t.timeline)}</td>
-                        </tr>
-
-                        {expanded ? (
-                          <tr>
-                            <td colSpan={7} className="bgTaskDetailCell">
-                              <section id={detailId} aria-label="Tool calls" className="bgTaskDetail">
-                                <div className="mono muted bgTaskDetailHeader">
-                                  Tool calls (metadata only){showLoading && toolCalls.length > 0 ? " - refreshing" : ""}
-                                  {showCapped
-                                    ? ` - capped${caps ? ` (max ${caps.maxMessages} messages / ${caps.maxToolCalls} tool calls)` : ""}`
-                                    : ""}
-                                </div>
-
-                                {!sessionId ? (
-                                  <div className="muted bgTaskDetailEmpty">No session id available for this task.</div>
-                                ) : showError ? (
-                                  <div className="muted bgTaskDetailEmpty">Tool calls unavailable.</div>
-                                ) : showLoading && toolCalls.length === 0 ? (
-                                  <div className="muted bgTaskDetailEmpty">Loading tool calls...</div>
-                                ) : empty ? (
-                                  <div className="muted bgTaskDetailEmpty">No tool calls recorded.</div>
-                                ) : (
-                                  <div className="bgTaskToolCallsGrid">
-                                    {toolCalls.map((c) => (
-                                      <div key={c.callId} className="bgTaskToolCall">
-                                        <div className="bgTaskToolCallRow">
-                                          <div className="mono bgTaskToolCallTool" title={c.tool}>
-                                            {c.tool}
-                                          </div>
-                                          <div className="mono muted bgTaskToolCallStatus" title={c.status}>
-                                            {c.status}
-                                          </div>
-                                        </div>
-                                        <div className="mono muted bgTaskToolCallTime">{formatTime(c.createdAtMs)}</div>
-                                        <div className="mono muted bgTaskToolCallId" title={c.callId}>
-                                          {c.callId}
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </section>
-                            </td>
-                          </tr>
-                        ) : null}
-                      </React.Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          <section className="card">
-            <div className="cardHeader">
-              <h2>Background tasks</h2>
-              <span className="badge">
-                {data.backgroundTasks.length}
-              </span>
-            </div>
-            <div className="tableWrap">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>DESCRIPTION</th>
-                    <th>AGENT</th>
-                    <th>LAST MODEL</th>
-                    <th>STATUS</th>
-                    <th>TOOL CALLS</th>
-                    <th>LAST TOOL</th>
-                    <th>TIMELINE</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.backgroundTasks.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="muted" style={{ padding: 16 }}>
-                        No background tasks detected yet. When you run background agents, they will appear here.
-                      </td>
-                    </tr>
-                  ) : null}
-                  {data.backgroundTasks.map((t) => {
-                    const expanded = expandedBgTaskIds.has(t.id);
-                    const sessionId = toNonEmptyString(t.sessionId);
-                    const detailId = `bg-toolcalls-${t.id}`;
-                    const entry = sessionId ? toolCallsBySession.get(sessionId) : null;
-                    const toolCalls = entry?.data?.ok ? entry.data.toolCalls : [];
-                    const showCapped = Boolean(entry?.data?.truncated);
-                    const caps = entry?.data?.caps;
-                    const showLoading = entry?.state === "loading";
-                    const showError = entry?.state === "error" && !entry?.data?.ok;
-                    const empty = sessionId ? toolCalls.length === 0 && !showLoading && !showError : true;
-
-                    return (
-                      <React.Fragment key={t.id}>
-                        <tr>
-                          <td>
-                            <div className="bgTaskRowTitleWrap">
-                              <button
-                                type="button"
-                                className="bgTaskToggle"
-                                onClick={() => toggleBackgroundTaskExpanded(t)}
-                                aria-expanded={expanded}
-                                aria-controls={detailId}
-                                title={expanded ? "Collapse" : "Expand"}
-                                aria-label={expanded ? "Collapse tool calls" : "Expand tool calls"}
-                              />
-                              <div className="bgTaskRowTitleText">
-                                <div className="taskTitle">{t.description}</div>
-                                {t.subline ? <div className="taskSub mono">{t.subline}</div> : null}
-                              </div>
-                            </div>
-                          </td>
-                          <td className="mono">{t.agent}</td>
-                          <td className="mono">{t.lastModel}</td>
-                          <td>
-                            <span className={`pill pill-${statusTone(t.status)}`}>{t.status}</span>
-                          </td>
-                          <td className="mono">{t.toolCalls}</td>
-                          <td className="mono">{t.lastTool}</td>
-                          <td className="mono muted">{formatBackgroundTaskTimelineCell(t.status, t.timeline)}</td>
-                        </tr>
-
-                        {expanded ? (
-                          <tr>
-                            <td colSpan={7} className="bgTaskDetailCell">
-                              <section id={detailId} aria-label="Tool calls" className="bgTaskDetail">
-                                <div className="mono muted bgTaskDetailHeader">
-                                  Tool calls (metadata only){showLoading && toolCalls.length > 0 ? " - refreshing" : ""}
-                                  {showCapped
-                                    ? ` - capped${caps ? ` (max ${caps.maxMessages} messages / ${caps.maxToolCalls} tool calls)` : ""}`
-                                    : ""}
-                                </div>
-
-                                {!sessionId ? (
-                                  <div className="muted bgTaskDetailEmpty">
-                                    No session id available for this task.
-                                  </div>
-                                ) : showError ? (
-                                  <div className="muted bgTaskDetailEmpty">
-                                    Tool calls unavailable.
-                                  </div>
-                                ) : showLoading && toolCalls.length === 0 ? (
-                                  <div className="muted bgTaskDetailEmpty">
-                                    Loading tool calls...
-                                  </div>
-                                ) : empty ? (
-                                  <div className="muted bgTaskDetailEmpty">
-                                    No tool calls recorded.
-                                  </div>
-                                ) : (
-                                  <div className="bgTaskToolCallsGrid">
-                                    {toolCalls.map((c) => (
-                                      <div key={c.callId} className="bgTaskToolCall">
-                                        <div className="bgTaskToolCallRow">
-                                          <div className="mono bgTaskToolCallTool" title={c.tool}>
-                                            {c.tool}
-                                          </div>
-                                          <div className="mono muted bgTaskToolCallStatus" title={c.status}>
-                                            {c.status}
-                                          </div>
-                                        </div>
-                                        <div className="mono muted bgTaskToolCallTime">{formatTime(c.createdAtMs)}</div>
-                                        <div className="mono muted bgTaskToolCallId" title={c.callId}>
-                                          {c.callId}
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </section>
-                            </td>
-                          </tr>
-                        ) : null}
-                      </React.Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          <details className="details">
-            <summary className="detailsSummary">
-              <span className="detailsTitle">Raw JSON</span>
-              <span className="chev" aria-hidden="true" />
-            </summary>
-            <div className="detailsBody">
-              <pre className="code">
-                <code>{rawJsonText}</code>
-              </pre>
-            </div>
-          </details>
-
-          <section className="card">
-            <div className="cardHeader">
-              <h2>llama.cpp Monitor</h2>
-            </div>
-            <div className="llama-monitor-grid">
-              <ServerControls />
-            </div>
-
-          </section>
+          </div>
         </main>
 
         <footer className="footer">
