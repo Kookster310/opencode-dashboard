@@ -3,6 +3,10 @@ import { Hono } from "hono"
 import { createApi } from "./api"
 import { createDashboardStore, type DashboardStore } from "./dashboard"
 import { getLegacyStorageRootForBackend, selectStorageBackend } from "../ingest/storage-backend"
+import { createLlamaMonitorApi } from './llama-monitor/api'
+import { createLlamaMonitorState } from './llama-monitor/state'
+import { detectGpuBackend, pollGpuMetrics } from './llama-monitor/gpu'
+import * as path from 'node:path'
 
 const args = process.argv.slice(2)
 let projectPath: string | undefined;
@@ -63,6 +67,30 @@ const getStoreForSource = ({ sourceId, projectRoot }: { sourceId: string; projec
 }
 
 app.route("/api", createApi({ store, storageRoot, projectRoot: resolvedProjectPath, storageBackend, getStoreForSource }))
+
+// Llama Monitor initialization
+const homeDir = process.env.HOME || '/tmp'
+const llamaMonitorDir = path.join(homeDir, '.config/llama-monitor')
+const llamaMonitorPresetsPath = path.join(llamaMonitorDir, 'presets.json')
+const llamaMonitorGpuEnvPath = path.join(llamaMonitorDir, 'gpu-env.json')
+const llamaMonitorUiSettingsPath = path.join(llamaMonitorDir, 'ui-settings.json')
+
+const llamaMonitorState = createLlamaMonitorState({
+  presetsPath: llamaMonitorPresetsPath,
+  modelsDir: null,
+  gpuEnvPath: llamaMonitorGpuEnvPath,
+  uiSettingsPath: llamaMonitorUiSettingsPath,
+})
+
+const llamaBackend = detectGpuBackend()
+
+// Start periodic GPU metrics polling
+const gpuPollInterval = setInterval(() => {
+  const metrics = pollGpuMetrics(llamaBackend)
+  llamaMonitorState.gpuMetrics = metrics
+}, 3000)
+
+app.route("/api", createLlamaMonitorApi({ state: llamaMonitorState, backend: llamaBackend }))
 
 Bun.serve({
   fetch: app.fetch,

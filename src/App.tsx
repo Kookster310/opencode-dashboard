@@ -3,6 +3,10 @@ import { computeWaitingDing } from "./ding-policy";
 import { playDing, unlockAudio } from "./sound";
 import { computeStackedSegments } from "./timeseries-stacked";
 import { formatTokenCount } from "./format-token-count";
+import { GpuDashboard } from "./components/GpuDashboard";
+import { ServerControls } from "./components/ServerControls";
+import { ModelBrowser } from "./components/ModelBrowser";
+import { PresetsEditor } from "./components/PresetsEditor";
 
 const APP_VERSION =
   typeof __APP_VERSION__ === "string" && __APP_VERSION__.trim().length > 0 ? __APP_VERSION__ : "0.0.0";
@@ -1586,15 +1590,6 @@ export default function App() {
             >
               Sound {soundEnabled ? (soundUnlocked ? "On" : "On") : "Off"}
             </button>
-            <button
-              className="button"
-              type="button"
-              onClick={() => void playDing("task")}
-              title="Play ding"
-              aria-label="Play ding sound"
-            >
-              Ding
-            </button>
             <button className="button" type="button" onClick={onCopyRawJson}>
               {copyState === "ok" ? "Copied" : copyState === "err" ? "Copy failed" : "Copy raw JSON"}
             </button>
@@ -2088,6 +2083,21 @@ export default function App() {
               </pre>
             </div>
           </details>
+
+          <section className="card">
+            <div className="cardHeader">
+              <h2>llama.cpp Monitor</h2>
+            </div>
+            <div className="llama-monitor-grid">
+              <ServerControls />
+              <GpuDashboard />
+            </div>
+            <div className="llama-monitor-grid">
+              <ModelBrowser />
+              <PresetsEditor />
+            </div>
+
+          </section>
         </main>
 
         <footer className="footer">

@@ -1,7 +1,7 @@
 {
   "name": "@310networks/opencode-dashboard",
   "version": "0.1.0",
-  "description": "Local-only, read-only dashboard for OpenCode agent activity with a built-in llama.cpp monitor",
+  "description": "Remote dashboard for OpenCode agent activity and llama.cpp monitoring",
   "license": "SUL-1.0",
   "repository": {
     "type": "git",

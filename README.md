@@ -1,22 +1,22 @@
 # OpenCode Dashboard
 
-Local-only, read-only dashboard for OpenCode agent activity with a built-in llama.cpp monitor.
+Remote dashboard for monitoring [OpenCode](https://github.com/nicepkg/opencode) agent activity and llama.cpp inference servers.
 
 ![Dashboard GUI](./gui.png)
 
 ## Features
 
-- **Agent Dashboard**: plan progress, background tasks, tool-call metadata, token usage, and time-series activity
-- **llama.cpp Monitor**: GPU metrics, server start/stop, model browser, chat interface, and config presets
+- **Agent Dashboard**: plan progress, tool-call metadata, token usage, background tasks, and time-series activity
+- **llama.cpp Monitor**: GPU metrics, model browser, and config presets — connects to a remote server via its `/metrics` endpoint
 
 ## Quick Start
 
 ```bash
-# Register your project (required after OpenCode SQLite update)
-bunx @310networks/opencode-dashboard@latest add --name "My Project"
+# Run the dashboard
+bunx @310networks/opencode-dashboard@latest --project ./
 
-# Launch the dashboard
-bunx @310networks/opencode-dashboard@latest
+# Connect to a remote OpenCode server (set URL + credentials in the UI)
+bunx @310networks/opencode-dashboard@latest --project ./ --host 0.0.0.0
 ```
 
 ## Options
@@ -27,26 +27,25 @@ bunx @310networks/opencode-dashboard@latest
 | `--host <host>` | Server bind host | `127.0.0.1` |
 | `--port <port>` | Server port | `51234` |
 
-Environment variable: `OMO_DASHBOARD_HOST` overrides `--host`.
+| Env Var | Description |
+|---------|-------------|
+| `OMO_DASHBOARD_HOST` | Overrides `--host` |
 
-## Install from Source
+## Connecting to a Remote OpenCode Server
 
-```bash
-bun install
-bun run dev -- --project /path/to/your/project
-```
+The dashboard runs as a separate server and connects to a remote OpenCode instance:
 
-Production: `bun run build && bun run start -- --project /path/to/your/project`
+1. Open the dashboard in your browser
+2. In the settings panel, enter your OpenCode server URL (e.g. `http://10.0.0.5:51234`)
+3. Add username/password if your OpenCode server requires auth
 
-## What It Reads
+## llama.cpp Monitor
 
-- **Projects**: `.sisyphus/boulder.json` for OhMyOpenCode plan tracking (optional)
-- **OpenCode SQLite**: `~/.local/share/opencode/opencode.db` (read-only, auto-detected)
-- **Fallback**: Legacy file-based storage at `~/.local/share/opencode/storage/`
+Configure a remote llama.cpp server URL in settings. The dashboard polls its `/metrics` endpoint for GPU and inference stats — it does not spawn or control any local processes.
 
 ## Privacy
 
-Prompts, tool arguments, and raw outputs are never rendered. Only metadata (tool name, status, timestamps, counts) is shown.
+Prompts, tool arguments, and raw outputs are never rendered. Only metadata (tool name, status, timestamps, counts) is displayed.
 
 ## Attribution
 

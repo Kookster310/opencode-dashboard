@@ -21,7 +21,7 @@ export default defineConfig({
       transformIndexHtml(html) {
         return html.replace(
           /<title>Agent Dashboard<\/title>/,
-          `<title>Agent Dashboard (v${version})</title>`,
+          `<title>OpenCode Dashboard (v${version})</title>`,
         );
       },
     },

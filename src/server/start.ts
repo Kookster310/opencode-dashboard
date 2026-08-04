@@ -9,6 +9,9 @@ import { createApi } from "./api"
 import { createDashboardStore, type DashboardStore } from "./dashboard"
 import { getPublicHost, resolveServerHost } from "./host"
 import { resolveStaticFilePath } from "./static-file"
+import { createLlamaMonitorApi } from './llama-monitor/api'
+import { createLlamaMonitorState } from './llama-monitor/state'
+import { detectGpuBackend, pollGpuMetrics } from './llama-monitor/gpu'
 
 function isBunxInvocation(argv: string[]): boolean {
   if (process.env.BUN_INSTALL_CACHE_DIR) return true
@@ -72,7 +75,7 @@ const storageRoot = getLegacyStorageRootForBackend(storageBackend)
 
 if (isBunxInvocation(Bun.argv) && storageBackend.kind === "sqlite" && listSources(storageRoot).length === 0) {
   console.log("Please make sure you have added directories you want to track (OpenCode SQLite update). Run:")
-  console.log('bunx oh-my-opencode-dashboard@latest add --name "My Project"')
+  console.log('bunx @310networks/opencode-dashboard@latest add --name "My Project"')
 }
 
 const store = createDashboardStore({
@@ -109,6 +112,29 @@ const getStoreForSource = ({ sourceId, projectRoot }: { sourceId: string; projec
 }
 
 app.route('/api', createApi({ store, storageRoot, projectRoot: project, storageBackend, getStoreForSource }))
+
+// Llama Monitor initialization
+const llamaMonitorDir = join(process.env.HOME || '/tmp', '.config/llama-monitor')
+const llamaMonitorPresetsPath = join(llamaMonitorDir, 'presets.json')
+const llamaMonitorGpuEnvPath = join(llamaMonitorDir, 'gpu-env.json')
+const llamaMonitorUiSettingsPath = join(llamaMonitorDir, 'ui-settings.json')
+
+const llamaMonitorState = createLlamaMonitorState({
+  presetsPath: llamaMonitorPresetsPath,
+  modelsDir: null,
+  gpuEnvPath: llamaMonitorGpuEnvPath,
+  uiSettingsPath: llamaMonitorUiSettingsPath,
+})
+
+const llamaBackend = detectGpuBackend()
+
+// Start periodic GPU metrics polling
+const gpuPollInterval = setInterval(() => {
+  const metrics = pollGpuMetrics(llamaBackend)
+  llamaMonitorState.gpuMetrics = metrics
+}, 3000)
+
+app.route('/api', createLlamaMonitorApi({ state: llamaMonitorState, backend: llamaBackend }))
 
 const distRoot = join(import.meta.dir, '../../dist')
 
@@ -168,11 +194,19 @@ function getContentType(ext: string): string {
   return types[ext] || 'text/plain'
 }
 
-Bun.serve({
+const server = Bun.serve({
   fetch: app.fetch,
   hostname: host,
   port,
 })
+
+const cleanup = () => {
+  if (gpuPollInterval) clearInterval(gpuPollInterval)
+  server.stop(false)
+}
+
+process.on('SIGTERM', cleanup)
+process.on('SIGINT', cleanup)
 
 const publicHost = getPublicHost(host)
 if (publicHost === host) {
